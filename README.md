@@ -17,16 +17,22 @@ Project is created with:
 * ReactJS
 	
 ## Setup
-To run this project, install it locally using npm:
-
+To run this project:
+Open command prompt and enter the command to enter the postgreSQL command propmt
 ```
 $ psql
-Copy the script from ./database_creation/to_populate.sql and enter in the command promt
+```
+Copy the script from ./database_creation/to_populate.sql and enter in the command prompt
+
 Create a new command prompt
+```
 $ cd ../client
 $ npm install
 $ npm start
+```
+
 Create a new command prompt
+```
 $ cd ../server
 $ npm install
 $ npm start
