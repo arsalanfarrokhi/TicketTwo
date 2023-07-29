@@ -62,3 +62,6 @@ CREATE VIEW flight_view as (select FromAirport, ToAirport, DepartureTime, Arriva
 \copy Flight FROM 'Flights.csv' WITH DELIMITER ',' CSV HEADER;
 
 \copy Ticket FROM 'Tickets.csv' WITH DELIMITER ',' CSV HEADER;
+
+CREATE VIEW user_ticket_info AS SELECT ticketid , F.flightid AS flightid, fromairport , toairport, departuretime, arrivaltime, firstname, lastname, DATE(dob),bookedby as userid, bookedfor as travelerid, passportid  
+FROM (traveler RIGHT JOIN ticket ON traveler.travelerid = ticket.bookedfor) AS T LEFT JOIN flight F ON T.associatedwith = F.flightid ORDER BY ticketid;

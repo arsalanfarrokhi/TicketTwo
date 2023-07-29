@@ -7,23 +7,39 @@ const app = express();
 app.use(cors());
 app.use(express.json()); // middleware ; use to retrieve info in body/ jason sent from client into a js, so we can maniputale
 
-//Get all flights
+/*
+***********************************************************
+!!!! Important !!  Before using this file, make sure you have the following constraints !!!!!!!!!!
 
-app.get('/api/flights', async (req, res) =>{
-    const {from, to, when} = req.query;
+**** CONSTRAINT ticket_fk_flight FOREIGN KEY(AssociatedWith) REFERENCES Flight ON UPDATE CASCADE ON DELETE CASCADE,
+**** CONSTRAINT ticket_fk_traveler FOREIGN KEY(BookedFor) REFERENCES Traveler ON UPDATE CASCADE ON DELETE CASCADE,
+**** CONSTRAINT ticket_fk_user FOREIGN KEY (BookedBy) REFERENCES _user ON UPDATE CASCADE ON DELETE CASCADE);
+
+***********************************************************
+*/
+
+//Get all restaraunts
+app.get('/api/admin/flights', async (req, res) =>{
+    const { flight_text} = req.query;
     try{
-        
-        const results = await db.query("select * from flight where fromairport = $1 and toairport = $2 and date(departuretime) = $3;", [from, to, when]); 
-        console.log(results.rows);
+        var results;
+        if (flight_text===undefined) {
+            results = await db.query("select * from flight where departuretime >= NOW() order by departuretime;");
+        } else {
+            results = await db.query(`select * from flight where fromairport like '%${flight_text}%' or toairport like '%${flight_text}%';`); 
+        }
         res.status(200).json({
-        results: results.rows.length, 
-        status: 'success',
-        data: results.rows
-    })
+            results: results.rows.length, 
+            status: 'success',
+            data: {
+                flights: results.rows
+            }
+        })
     } catch(err){
         console.log(err);
     }
 });
+
 app.get('/api/login', async (req, res) =>{
     const {email, password} = req.query;
     try{
@@ -171,12 +187,8 @@ app.delete('/api/admin/users/:id', async (req, res) =>{
 					
     try{
         // update capacity,
-
-        await db.query(
-
-            "UPDATE flight SET capacity = capacity+1 WHERE flightid IN(SELECT associatedwith FROM ticket WHERE bookedby = $1);", [id]);
-        
-                            // // delete tickets (if no constraints, un-comment the below query)
+        await db.query("UPDATE flight SET capacity = capacity+1 WHERE flightid IN (SELECT associatedwith FROM ticket WHERE bookedby = $1);", [id]);
+        // // delete tickets (if no constraints, un-comment the below query)
         // await db.query("DELETE FROM ticket WHERE bookedby = $1;", [id]);
 
         // delete user. 
@@ -220,6 +232,10 @@ app.delete('/api/admin/users', async (req, res) =>{
     }
 })
 
+// // //
+// CREATE VIEW user_ticket_info AS SELECT ticketid , F.flightid AS flightid, fromairport , toairport, departuretime, arrivaltime, firstname, lastname, DATE(dob),bookedby as userid, bookedfor as travelerid, passportid  
+//  FROM (traveler RIGHT JOIN ticket ON traveler.travelerid = ticket.bookedfor) AS T LEFT JOIN flight F ON T.associatedwith = F.flightid ORDER BY ticketid;
+// // //
 // Get one tickets by ticketid from admin
 app.get('/api/user/tickets/:id' ,async(req,res) =>{
     const {id} = req.params;
@@ -243,30 +259,6 @@ app.get('/api/user/tickets/:id' ,async(req,res) =>{
 							
 	
 		 
-    }
-})
-
-// Cancel a ticket by ticket id
-app.delete('/api/user/tickets/:id', async (req, res) =>{
-    const {id} = req.params;
-    try{
-        // capacity +1
-        await db.query("UPDATE flight SET capacity = capacity+1 WHERE flightid =(SELECT associatedwith FROM ticket WHERE ticketid = $1);", [id]);
-        const results = await db.query('DELETE FROM ticket WHERE ticketid = $1 returning *;',[id]);
-        res.status(200).json({
-            results: results.rows.length, 
-            status: 'delete success',
-            data: {
-                users: results.rows
-            }
-        })
-    }catch(err){
-        console.log(err);
-        res.json({ 
-            status: 'failed',
-            data: {
-            }
-        })
     }
 })
 
@@ -299,8 +291,7 @@ app.get('/api/admin/travelers', async(req, res) =>{
 app.put('/api/admin/travelers', async(req, res) =>{
     const {id, firstname, lastname, email, phonenum, passportid, dob} = req.body;
     try{
-        const results = await db.query('update traveler set firstname = $1, lastname = $2, email = $3, phonenum = $4, passportid = $5 dob = $6 where travelerid = $7 returning *;',
-                                        [firstname, lastname, email, phonenum, passportid, dob, id]);
+        const results = await db.query('update traveler set firstname = $1, lastname = $2, email = $3, phonenum = $4, passportid = $5, dob = $6 where travelerid = $7 returning *;', [firstname, lastname, email, phonenum, passportid, dob, id]);
         res.status(200).json({
             results: results.rows.length, 
             status: 'success',
@@ -331,8 +322,7 @@ app.post('/api/admin/travelers', async (req, res) =>{
         if(id === null){
             id = 0;
         }
-        const results = await db.query("insert into traveler (travelerid, firstname, lastname, email, phonenum, passportid, dob) values ($1, $2, $3, $4, $5, $6, $7) returning * ;",
-                                         [id, firstname, lastname, email, phonenum, passportid, dob]);
+        const results = await db.query("insert into traveler (travelerid, firstname, lastname, email, phonenum, passportid, dob) values ($1, $2, $3, $4, $5, $6, $7) returning * ;", [id, firstname, lastname, email, phonenum, passportid, dob]);
         res.status(200).json({
             results: results.rows.length, 
             status: 'success',
@@ -384,44 +374,6 @@ app.get('/api/admin/travelers/tickets', async(req, res) =>{
         res.status(200).json({
             status: 'failed'
        })
-    }
-})
-app.post('/api/admin/tickets', async (req, res) =>{
-    const {email, fn, ln, phone, dob, flightid} = req.body;
-    try{
-        console.log(email);
-        const user = await db.query(`select * from _user where email = '${email}';`);
-        var userid;
-        if(user.rows.length === 0){
-            const res_id = await db.query('select max(userid)+1 as newid from _user;');
-            userid = res_id.rows[0].newid;
-            if(userid === null){
-                userid = 0;
-            }
-            const results = await db.query("insert into _user (userid, email, password, privilege) values ($1, $2, $3, $4) returning * ;", [userid, email, "12345", 0]);
-        }
-        else{
-            userid = user.rows[0].userid;
-        }
-        const res_id = await db.query('select max(travelerid)+1 as newid from traveler;');
-        let id = res_id.rows[0].newid;
-        if(id === null){
-            id = 0;
-        }
-        const new_user = await db.query("insert into traveler (travelerid, firstname, lastname, email, phonenum, dob) values ($1, $2, $3, $4, $5, $6) returning *;", [id, fn, ln, email, phone, dob]);
-        const res_ticket_id = await db.query('select max(ticketid)+1 as newid from ticket');
-        let ticket_id = res_ticket_id.rows[0].newid;
-        if(ticket_id === null){
-            ticket_id = 0;
-        }
-        const results = await db.query("insert into ticket values ($1, $2, $3, $4) returning *;", [ticket_id, flightid, id, userid]);
-
-        const new_flight = await db.query("update flight set capacity = capacity - 1 where flightid = $1;", [flightid]);
-        res.status(200).json({ 
-            status: 'success',
-        })
-    }catch(err){
-        console.log(err);
     }
 })
 
