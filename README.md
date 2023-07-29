@@ -18,6 +18,7 @@ Project is created with:
 	
 ## Setup
 To run this project:
+
 Open command prompt and enter the command to enter the postgreSQL command propmt
 ```
 $ psql
